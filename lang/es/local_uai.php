@@ -1,4 +1,6 @@
 <?php
+$string['messageprovider:quizzes_notification'] = 'Notificaciones de intentos en Quizzes';
+
 $string['pluginname'] = 'Administración UAI';
 
 //Actions de uai_emarking
