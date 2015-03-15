@@ -57,7 +57,20 @@ echo $OUTPUT->heading($title);
 
 $attempts = $DB -> get_recordset_sql(
     "SELECT 
-    *
+    U.uid,
+    firstname,
+    lastname,
+    email,
+    IFNULL(finished, 0) as finished,
+	IFNULL(maxscore, 0) as maxscore, 
+	IFNULL(minscore, 0) as minscore, 
+	IFNULL(avgscore, 0) as avgscore, 
+    IFNULL(qmaxscore, 0) as qmaxscore,
+    IFNULL(recent, 0) as recent,
+    IFNULL(correct, 0) as correct,
+	IFNULL(qids, 0) AS qids,
+	IFNULL(qname, 0) as qname,
+    IFNULL(timefinish, 0) as timefinish    
 FROM
 (SELECT u.id as uid,
 		u.firstname,
@@ -133,10 +146,10 @@ foreach($attempts as $attempt)	{
     }
 }
 if($total > 0) {
-    $coursestats['avgscore'] = $coursestats['avgscore'] / $total;
+    $coursestats['avgscore'] = round($coursestats['avgscore'] / $total, 1);
 }
 if($totalfinished > 0) {
-    $coursestats['avgfinished'] = $coursestats['avgfinished'] / $totalfinished;
+    $coursestats['avgfinished'] = round($coursestats['avgfinished'] / $totalfinished, 1);
 }
 
 // Create progress bar
