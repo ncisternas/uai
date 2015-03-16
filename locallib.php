@@ -279,21 +279,6 @@ class form_agregar extends moodleform {
 	function definition() {
         global $CFG;
 
-        //Script que modifica URL para filtrar periodos acad�micos por unidades
-        ?>
-		<script>
-	        function obtenerUnidad() {
-	        	var x = document.getElementById("unidad");
-	        	//location.href = "?unidad="+x.value;
-
-	        	//Prueba de código que recarga sin error
-	        	var request = new XMLHttpRequest();
-	        	request.open('GET', "http://webcursos-d.uai.cl/webcursos/local/uai/agregar.php?unidad="+x.value, false);
-	        	request.send(); // because of "false" above, will block until the request is done 
-	        	                // and status is available. Not recommended, however it works for simple cases.
-	        }
-		</script>
-	    <?php    
         $mform =& $this->_form;
         $category = $this->_customdata['category'];
         
@@ -301,7 +286,7 @@ class form_agregar extends moodleform {
         
         //con esto se obtienen las unidades academicas de Omega
         $unidadesAcademicas = $omega->listarUnidadesAcademicas();
-        $attributes = array('id'=>'unidad','onChange'=>'obtenerUnidad()');
+        $attributes = array('id'=>'unidad');
         $mform->addElement('select', 'idOmega', 'Unidad Académica', $unidadesAcademicas, $attributes);
         
         //con esto se obtienen los periodos acad�micos de Omega
@@ -309,9 +294,7 @@ class form_agregar extends moodleform {
         $mform->addElement('select', 'idOmega', 'Periodo Académico', $periodosAcademicos);
         
         //lo siguiente permite desplegar una lista con todas las categorías de moodle anidadas
-        $displaylist = array();
-        $parentlist = array();
-        coursecat::make_categories_list($displaylist, $parentlist, '');
+        $displaylist = coursecat::make_categories_list();
         $mform->addElement('select', 'category', 'Categoría Moodle', $displaylist);
         
         //Y finalmente un select simple para designar si está o no activo.

@@ -173,12 +173,15 @@ foreach($studentinfo as $uid => $studentinfo)	{
     $subject = 'Notificacion de intentos en tus quizzes.';
 
     $message = '<html>';
-    $message .= 'Estimado(a) ' . $studentinfo->firstname . ' ' . $studentinfo->lastname . ' ,';
-    $message .= '<br/>';
-    $message .= 'Quiero que notes que respecto de tu trabajo con los ejercicios de wiris:<br/>';
-    $message .= 'Esta semana realizaste  ' . $studentinfo->recent . '  intentos, de los cuales contestaste adecuadamente ' . $studentinfo->correct . '.<br/>';
+    $message .= '<p><strong>Estimado(a) ' . $studentinfo->firstname . ' ' . $studentinfo->lastname . '</strong>,</p>';
+    $message .= '<p>Quiero que notes que respecto de tu trabajo con los ejercicios de wiris:</p>';
+    $message .= '<p>Esta semana realizaste  ' . $studentinfo->recent . '  intentos';
+    if($studentinfo->correct > 0) {
+        $message .= ', de los cuales contestaste adecuadamente ' . $studentinfo->correct;
+    }
+    $message .= '.<br/>';
     $message .= 'Desde el inicio del curso hasta ahora llevas acumulado un trabajo de ' . $studentinfo->finished .' intentos y en promedio un ';
-    $message .= 'alumno del curso ha trabajado ' . $coursestats['avgfinished'] . ',  con un máximo de ' . $coursestats['maxfinished'] . ' intentos.<br/><br/>';
+    $message .= 'alumno del curso ha trabajado ' . $coursestats['avgfinished'] . ',  con un máximo de ' . $coursestats['maxfinished'] . ' intentos.</p><br/><br/>';
     $message .= 'Quedo en espera de tus dudas.';
     $message .= '</html>';
     
