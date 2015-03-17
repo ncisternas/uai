@@ -4,7 +4,74 @@ require_once($CFG->dirroot.'/course/lib.php');      // Librería de funciones de
 defined('MOODLE_INTERNAL') || die();
 require_once("$CFG->libdir/formslib.php");
 
+/**
+ * Gets all attempts
+ * @param unknown $courseid
+ * @return unknown
+ */
+function local_uai_get_quiz_attempts($courseid) {
+    global $DB;
+    
+    $attempts = $DB->get_recordset_sql("SELECT
+    U.uid,
+    firstname,
+    lastname,
+    email,
+    IFNULL(finished, 0) as finished,
+	IFNULL(maxscore, 0) as maxscore,
+	IFNULL(minscore, 0) as minscore,
+	IFNULL(avgscore, 0) as avgscore,
+    IFNULL(qmaxscore, 0) as qmaxscore,
+    IFNULL(recent, 0) as recent,
+    IFNULL(correct, 0) as correct,
+	IFNULL(qids, 0) AS qids,
+	IFNULL(qname, 0) as qname,
+    IFNULL(timefinish, 0) as timefinish
+FROM
+(SELECT u.id as uid,
+		u.firstname,
+        u.lastname,
+		u.email
+FROM mdl_user_enrolments ue
+JOIN mdl_enrol e ON (e.id = ue.enrolid AND e.courseid = :courseid)
+JOIN mdl_context c ON (c.contextlevel = 50 AND c.instanceid = e.courseid)
+JOIN mdl_role_assignments ra ON (ra.contextid = c.id AND ra.roleid = 5 AND ra.userid = ue.userid)
+JOIN mdl_user u ON (ue.userid = u.id)
+GROUP BY u.id) AS U
+LEFT JOIN
+(
+SELECT uid as uid,
+        SUM(finished) AS finished,
+		MAX(score) as maxscore,
+		MIN(score) as minscore,
+		AVG(score) as avgscore,
+        MAX(maxscore) as qmaxscore,
+        SUM(recent) as recent,
+        SUM(correct) as correct,
+		COUNT(distinct qid) AS qids,
+		GROUP_CONCAT(qname) as qname,
+        MAX(timefinish) as timefinish
+FROM (
+SELECT u.id as uid,
+        CASE WHEN qa.state = 'finished' THEN 1 ELSE 0 end AS finished,
+		IFNULL(qa.sumgrades,0) AS score,
+        q.sumgrades AS maxscore,
+        CASE WHEN qa.timefinish > unix_timestamp(ADDDATE(now(), INTERVAL -7 DAY)) THEN 1 ELSE 0 END as recent,
+        CASE WHEN q.sumgrades = qa.sumgrades THEN 1 ELSE 0 END as correct,
+		q.id AS qid,
+		q.name AS qname,
+        qa.timefinish
+FROM {quiz} AS q
+INNER JOIN {quiz_attempts} AS qa ON (q.course = :courseid2 AND qa.quiz = q.id)
+INNER JOIN {user} AS u ON (u.id = qa.userid)) AS T
+GROUP BY uid) AS Q
+ON (U.uid = Q.uid)", array(
+        'courseid' => $courseid,
+        'courseid2' => $courseid
+    ));
 
+    return $attempts;
+}
 /**
  * Esta clase es la que relaciona los contenidos con
  * la BBDD de Omega.
@@ -58,7 +125,7 @@ class omega {
 	
 	function listarPeriodosAcademicos(){
 
-		//Una condici�n extra en el query hacia la BDD, en el caso de que se quieran filtrar los periodos
+		//Una condición extra en el query hacia la BDD, en el caso de que se quieran filtrar los periodos
 		if(isset($_GET['unidad']))	{
 			$condicionUnidadAcademica = "And UnidadAcademica = '". $_GET['unidad'] ."'";
 		}
@@ -104,7 +171,7 @@ class omega {
 	
 		//Se extrae la información consultada
 		$data = array();
-		//Primera opci�n variable: "Indicaciones" � "Unidad seleccionada"
+		//Primera opción variable: "Indicaciones" � "Unidad seleccionada"
 		if(isset($_GET['unidad'])) {
 			$data['selected'] = $_GET['unidad'];
 		}

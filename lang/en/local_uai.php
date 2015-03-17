@@ -2,6 +2,7 @@
 
 $string['pluginname'] = 'UAI';
 
+$string['notifyquizparticipation'] = 'Notify quiz participation';
 $string['invalidshortname'] = 'Invalid shortname.';
 $string['notificationalreadyexists'] = 'Notification already exists.';
 $string['probleminserting'] = 'Error inserting notification.';
