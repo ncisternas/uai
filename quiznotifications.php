@@ -145,6 +145,8 @@ $showpages->setup ();
 // If table is sorted set the query string
 if($showpages->get_sql_sort()) {
     $tsort = $showpages->get_sql_sort();
+} else {
+    $tsort = 'timecreated DESC';
 }
 
 // Get the notifications sorted according to table
@@ -157,7 +159,7 @@ $notifications = $DB->get_records_sql('
     FROM {local_uai_quiz_notifications} AS qn 
     INNER JOIN {course} AS c ON (c.id = qn.course)
     INNER JOIN {course_categories} AS cc ON (cc.id = c.category)
-    ORDER BY ?', array($tsort));
+    ORDER BY ' . $tsort);
 
 // Add each row to the table
 foreach($notifications as $notification) {
