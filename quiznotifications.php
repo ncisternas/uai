@@ -25,8 +25,14 @@ require_once ($CFG->libdir . '/tablelib.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once ('forms/notification_form.php');
 
+// Rows per page
+$perpage = 10;
+
 // Sorting para for table
 $tsort = optional_param('tsort', 'timecreated DESC', PARAM_ALPHA);
+
+// Page to show (when paginating)
+$page = optional_param ( 'page', 0, PARAM_INT );
 
 // Id of course to remove from notifications
 $deleteid = optional_param('delete', 0, PARAM_INT);
@@ -137,7 +143,7 @@ $showpages->pageable ( true );
 $numcursos = $DB->count_records('local_uai_quiz_notifications');
 
 // Set the page size
-$showpages->pagesize ( 10, $numcursos);
+$showpages->pagesize ( $perpage, $numcursos);
 
 // Setup the table
 $showpages->setup ();
@@ -159,7 +165,7 @@ $notifications = $DB->get_records_sql('
     FROM {local_uai_quiz_notifications} AS qn 
     INNER JOIN {course} AS c ON (c.id = qn.course)
     INNER JOIN {course_categories} AS cc ON (cc.id = c.category)
-    ORDER BY ' . $tsort);
+    ORDER BY ?', array($tsort), $page * $perpage, $perpage );
 
 // Add each row to the table
 foreach($notifications as $notification) {

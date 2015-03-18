@@ -33,32 +33,29 @@ require_once("$CFG->libdir/formslib.php");
  * @param unknown $courseid
  * @return unknown
  */
-function local_uai_get_quiz_attempts($courseid) {
+function local_uai_get_quiz_attempts($courseid, $interval) {
     global $DB;
     
-    $attempts = $DB->get_recordset_sql("SELECT
+    $attempts = $DB->get_recordset_sql(
+   "SELECT
     U.uid,
     firstname,
     lastname,
     email,
     IFNULL(finished, 0) as finished,
+    IFNULL(correct, 0) as correct,
 	IFNULL(maxscore, 0) as maxscore,
 	IFNULL(minscore, 0) as minscore,
 	IFNULL(avgscore, 0) as avgscore,
-    IFNULL(qmaxscore, 0) as qmaxscore,
-    IFNULL(recent, 0) as recent,
-    IFNULL(correct, 0) as correct,
-	IFNULL(qids, 0) AS qids,
-	IFNULL(qname, 0) as qname,
-    IFNULL(timefinish, 0) as timefinish
+    IFNULL(qmaxscore, 0) as qmaxscore
 FROM
 (SELECT u.id as uid,
 		u.firstname,
         u.lastname,
 		u.email
-FROM mdl_user_enrolments ue
-JOIN mdl_enrol e ON (e.id = ue.enrolid AND e.courseid = :courseid)
-JOIN mdl_context c ON (c.contextlevel = 50 AND c.instanceid = e.courseid)
+FROM mdl_user_enrolments AS ue
+JOIN mdl_enrol AS e ON (e.id = ue.enrolid AND e.courseid = :courseid)
+JOIN mdl_context AS c ON (c.contextlevel = 50 AND c.instanceid = e.courseid)
 JOIN mdl_role_assignments ra ON (ra.contextid = c.id AND ra.roleid = 5 AND ra.userid = ue.userid)
 JOIN mdl_user u ON (ue.userid = u.id)
 GROUP BY u.id) AS U
@@ -70,31 +67,171 @@ SELECT uid as uid,
 		MIN(score) as minscore,
 		AVG(score) as avgscore,
         MAX(maxscore) as qmaxscore,
-        SUM(recent) as recent,
-        SUM(correct) as correct,
-		COUNT(distinct qid) AS qids,
-		GROUP_CONCAT(qname) as qname,
-        MAX(timefinish) as timefinish
+        SUM(correct) as correct
 FROM (
 SELECT u.id as uid,
         CASE WHEN qa.state = 'finished' THEN 1 ELSE 0 end AS finished,
 		IFNULL(qa.sumgrades,0) AS score,
         q.sumgrades AS maxscore,
-        CASE WHEN qa.timefinish > unix_timestamp(ADDDATE(now(), INTERVAL -7 DAY)) THEN 1 ELSE 0 END as recent,
-        CASE WHEN q.sumgrades = qa.sumgrades THEN 1 ELSE 0 END as correct,
-		q.id AS qid,
-		q.name AS qname,
-        qa.timefinish
-FROM {quiz} AS q
-INNER JOIN {quiz_attempts} AS qa ON (q.course = :courseid2 AND qa.quiz = q.id)
-INNER JOIN {user} AS u ON (u.id = qa.userid)) AS T
+        CASE WHEN q.sumgrades = qa.sumgrades THEN 1 ELSE 0 END as correct
+FROM mdl_quiz AS q
+INNER JOIN mdl_quiz_attempts AS qa ON (q.course = :courseid2 AND qa.quiz = q.id AND (q.timeopen >= unix_timestamp(ADDDATE(now(), INTERVAL :interval DAY)) OR q.timeopen = 0))
+INNER JOIN mdl_user AS u ON (u.id = qa.userid)
+ORDER BY q.id) AS T
 GROUP BY uid) AS Q
 ON (U.uid = Q.uid)", array(
         'courseid' => $courseid,
-        'courseid2' => $courseid
+        'courseid2' => $courseid,
+        'interval' => $interval
     ));
 
     return $attempts;
+}
+
+/**
+ * 
+ * @param unknown $attempts
+ * @return multitype:stdClass multitype:unknown
+ */
+function local_uai_get_stats_from_attempts($attempts) {
+    $studentinfo = array();
+    
+    // Course stats default values and student info
+    $coursestats = new stdClass();
+    $coursestats->avgfinished = 0;
+    $coursestats->maxfinished = 0;
+    $coursestats->maxfinisheduser = 0;
+    
+    $totalfinished = 0;
+    foreach ($attempts as $attempt) {
+        // Store student info
+        $studentinfo[$attempt->uid] = $attempt;
+    
+        // Calculate stats
+        if ($coursestats->maxfinished < $attempt->finished) {
+            $coursestats->maxfinished = $attempt->finished;
+            $coursestats->maxfinisheduser = $attempt->uid;
+        }
+        if ($attempt->finished > 0) {
+            $coursestats->avgfinished += $attempt->finished;
+            $totalfinished ++;
+        }
+    }
+    if ($totalfinished > 0) {
+        $coursestats->avgfinished = round($coursestats->avgfinished / $totalfinished, 1);
+    }
+    
+    return array($studentinfo, $coursestats);
+}
+
+function local_uai_send_notifications($cron = true, $debug = false, $debugsend = false, $course = 0) {
+    global $DB, $USER;
+    
+    // Get the notifications configured
+    if($course)
+        $quiznotifications = $DB->get_records('local_uai_quiz_notifications', array('course'=>$course));
+    else
+        $quiznotifications = $DB->get_records('local_uai_quiz_notifications');
+    $numnotifications = count($quiznotifications);
+    
+    // If there are any
+    if ($numnotifications > 0) {
+    
+        // Process each course separatedly
+        foreach ($quiznotifications as $quiznotification) {
+            if (! $course = $DB->get_record('course', array(
+                'id' => $quiznotification->course
+            ))) {
+                $msg = 'Invalid course id ' . $quiznotification->course;
+                if($cron)
+                    mtrace($msg);
+                else if($debug)
+                    echo $msg;
+                continue;
+            }
+    
+            $msg = 'Processing notifications for course ' . $course->fullname;
+            if($cron) {
+                mtrace($msg);
+            } else if($debug) {
+                echo $msg;
+            }
+    
+            // Get the attempts
+            $attemptsSemester = local_uai_get_quiz_attempts($course->id, -365);
+    
+            // Calculate stats for the attempts
+            list($studentinfoSemester, $coursestatsSemester) = local_uai_get_stats_from_attempts($attemptsSemester);
+    
+            // Get the attempts
+            $attempts = local_uai_get_quiz_attempts($course->id, -7);
+    
+            $userfrom = \core_user::get_noreply_user();
+            $userfrom->maildisplay = true;
+    
+            $totalmessages = 1;
+            foreach ($attempts as $studentinfo) {
+                // The user to be notified
+                if($debugsend) {
+                    $userto = $DB->get_record('user', array(
+                        'id' => $USER->id
+                    ));
+                } else {
+                    $userto = $DB->get_record('user', array(
+                        'id' => $studentinfo->uid
+                    ));
+                }
+    
+                // Email subject
+                $subject = 'Informe de tu trabajo on-line';
+    
+                $message = '<html>';
+                $message .= '<p><strong>Estimado(a) ' . $studentinfo->firstname . ' ' . $studentinfo->lastname . '</strong>,</p>';
+                $message .= '<p>Quiero que notes que respecto de tu trabajo con los ejercicios de wiris:</p>';
+                $message .= '<p>Esta semana realizaste  ' . $studentinfo->finished . '  intentos';
+                if ($studentinfo->correct > 0) {
+                    $message .= ', de los cuales contestaste adecuadamente ' . $studentinfo->correct;
+                }
+                $message .= '.<br/>';
+                $message .= 'Desde el inicio del curso hasta ahora llevas acumulado un trabajo de ' . $studentinfoSemester[$studentinfo->uid]->finished . ' intentos y en promedio un ';
+                $message .= 'alumno del curso ha trabajado ' . $coursestatsSemester->avgfinished . ',  con un máximo de ' . $coursestatsSemester->maxfinished . ' intentos.</p><br/><br/>';
+                $message .= 'Quedo en espera de tus dudas.';
+                $message .= '</html>';
+    
+                $eventdata = new stdClass();
+                $eventdata->component = 'local_uai';
+                $eventdata->name = 'quizzes_notification';
+                $eventdata->userto = $userto;
+                $eventdata->userfrom = $userfrom;
+                $eventdata->subject = $subject;
+                $eventdata->fullmessage = format_text_email($message, FORMAT_HTML);
+                $eventdata->fullmessageformat = FORMAT_HTML;
+                $eventdata->fullmessagehtml = $message;
+                $eventdata->smallmessage = $subject;
+                $eventdata->notification = 1; // this is only set to 0 for personal messages between users
+    
+                if ($userto) {
+                    if(!$debug || $debugsend) {
+                        $send = message_send($eventdata);
+                    }
+                    if($debug) {
+                        echo '<hr>';
+                        echo 'Subject: ' . $subject . '<br/>';
+                        echo "To: $userto->firstname $userto->lastname &lt;$userto->email&gt;<br/>";
+                        echo $message;
+                    }
+                    $totalmessages ++;
+                } else if($cron) {
+                    mtrace("Error sending message to $userto");
+                }
+                
+                if($debugsend)
+                    break;
+            }
+        }
+    }
+
+    return array($totalmessages, $numnotifications);
 }
 /**
  * Esta clase es la que relaciona los contenidos con
