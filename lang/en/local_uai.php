@@ -25,6 +25,7 @@
  */
 $string['pluginname'] = 'UAI';
 
+$string['modulestats'] = 'Moodle statistics';
 $string['notifyquizparticipation'] = 'Notify quiz participation';
 $string['invalidshortname'] = 'Invalid shortname.';
 $string['notificationalreadyexists'] = 'Notification already exists.';

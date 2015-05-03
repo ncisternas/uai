@@ -25,6 +25,7 @@
  */
 $string['pluginname'] = 'UAI';
 
+$string['modulestats'] = 'Estadísticas Webcursos';
 $string['notifyquizparticipation'] = 'Notificar participación en cuestionarios';
 $string['invalidshortname'] = 'Nombre corto de curso inválido.';
 $string['notificationalreadyexists'] = 'Notificación ya existe para el curso.';
