@@ -332,6 +332,45 @@ class omega
         mssql_free_result($sql);
         return $data;
     }
+    
+    function obtieneImagenesUsuario() {
+        // Se realiza la conexión con Omega (MSSQL)
+        self::conexion();
+        
+        $sql = "SELECT 
+                    ID_OmegaPersona as idomega, 
+                    RUT as rut, 
+                    DIGITO_VERIFICADOR as dv, 
+                    NOMBRES as nombres, 
+                    APELLIDO_MATERNO as materno, 
+                    APELLIDO_PATERNO as paterno, 
+                    MAIL_UAI as email 
+                    FROM MIRO_Alumnos
+                    order by ID_OmegaPersona";
+        // Se realiza la consulta
+        $resultset = mssql_query($sql);
+        $headers = array(
+            'idomega',
+            'rut',
+            'dv',
+            'nombres',
+            'materno',
+            'paterno',
+            'email'
+        );
+        // Se extrae la información consutada
+        $data = array();
+        while ($fila = mssql_fetch_assoc($sql)) {
+            foreach ($headers as $header) {
+                $id = $fila['email'];
+                $data[$id][$header] = $fila[$header];
+            }
+        }
+        mssql_free_result($sql);
+        return $data;
+    }
+    
+    
 
     function listarPeriodosAcademicos()
     {
@@ -494,7 +533,7 @@ class syncData
         return $data;
         mysqli_close($conexion);
     }
-
+    
     /**
      * Elimina un registro de la tabla Sync_Data
      */
