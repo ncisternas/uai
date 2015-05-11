@@ -51,7 +51,7 @@ $sql = "
         c.shortname, 
         c.fullname, 
         m.name, 
-        COUNT(distinct m.id) AS modules
+        COUNT(distinct cm.id) AS modules
     FROM {course_modules} AS cm
     INNER JOIN {modules} AS m ON (m.id = cm.module)
     INNER JOIN {course} AS c ON (c.id = cm.course)
@@ -71,19 +71,20 @@ $title = 'Estadísticas de cursos';
 $PAGE->set_title($title);
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading($title);
+echo $OUTPUT->heading($category->name);
+echo $OUTPUT->heading($title, 4);
 
 $table = new flexible_table('modulestats');
 
 $headers = array();
-$headers[] = 'Fullname';
-$headers[] = 'Module';
+$headers[] = 'Courses';
+$headers[] = 'Modules';
 $headers[] = 'Usage';
 $table->define_headers($headers);
 
 $columns = array();
-$columns[] = 'fullname';
-$columns[] = 'module';
+$columns[] = 'courses';
+$columns[] = 'modules';
 $columns[] = 'usage';
 $table->define_columns($columns);
 
@@ -91,7 +92,6 @@ $table->define_columns($columns);
 $table->define_baseurl($url);
 
 // The sortable and non sortable columns
-$table->sortable ( true, 'fullname', SORT_ASC );
 $table->pageable ( true );
 
 // We get the count for the data
@@ -100,18 +100,40 @@ $numcursos = count($modulestats);
 // Set the page size
 $table->pagesize ( $perpage, $numcursos);
 
+$table->show_download_buttons_at(array(TABLE_P_TOP));
+
 // Setup the table
 $table->setup ();
 
+$permodulestats = array();
+$courses = array();
+$modules = array();
 foreach($modulestats as $stat) {
-    $data = array();
-    $data[] = $stat->fullname;
-    $data[] = $stat->name;
-    $data[] = $stat->modules;
-    $table->add_data($data);
+    $courses[$stat->id] = 1;
+    $modules[] = intval($stat->modules);
+    $permodulestats[$stat->name][] = intval($stat->modules); 
 }
 
-$table->show_download_buttons_at(array(TABLE_P_TOP));
+$coursestats = local_uai_calculate_stats(array_values($courses), 'courses');
+$totalmodules  = local_uai_calculate_stats($modules, 'modules');
+
+$courseurl = new moodle_url('/course/view.php', array('id'=>$stat->id));
+$data = array();
+$data[] = $coursestats->count;
+$data[] = $totalmodules->sum;
+$data[] = round($totalmodules->sum / $coursestats->count, 1);
+$table->add_data($data);
+
 $table->print_html();
+
+$mstat_table = new html_table();
+$mstat_table->head = array('Módulo', 'Cursos', 'Promedio', 'Min', 'Max');
+foreach(array_keys($permodulestats) as $module) {
+    $mstat = local_uai_calculate_stats($permodulestats[$module], $module);
+    $mstat_table->data[] = new html_table_row(array($mstat->name, $mstat->count, $mstat->avg, $mstat->min, $mstat->max));
+}
+
+echo $OUTPUT->heading('Estadísticas de módulos', 4);
+echo html_writer::table($mstat_table);
 
 echo $OUTPUT->footer();
